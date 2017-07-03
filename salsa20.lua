@@ -1,11 +1,23 @@
 
 salsa20 = {}
 
+local string_byte = string.byte
+local string_char = string.char
+local string_len = string.len
+local string_format = string.format
+local bit_bxor = bit.bxor
+local bit_rol = bit.rol
+local bit_ror = bit.ror
+local bit_band = bit.band
+local table_concat = table.concat
+local table_Copy = table.Copy
+local math_floor = math.floor
+
 function salsa20.quarterround(y0, y1, y2, y3)
-	local z1 = bit.bxor(y1, bit.rol(y0 + y3, 7))
-	local z2 = bit.bxor(y2, bit.rol(z1 + y0, 9))
-	local z3 = bit.bxor(y3, bit.rol(z2 + z1, 13))
-	local z0 = bit.bxor(y0, bit.rol(z3 + z2, 18))
+	local z1 = bit_bxor(y1, bit_rol(y0 + y3, 7))
+	local z2 = bit_bxor(y2, bit_rol(z1 + y0, 9))
+	local z3 = bit_bxor(y3, bit_rol(z2 + z1, 13))
+	local z0 = bit_bxor(y0, bit_rol(z3 + z2, 18))
 	
 	return z0, z1, z2, z3
 end
@@ -46,10 +58,10 @@ function salsa20.littleendian(b)
 end
 
 function salsa20.inv_littleendian(b)
-	x0 = bit.band(		  b, 		0xFF)
-	x1 = bit.band(bit.ror(b, 8), 	0xFF)
-	x2 = bit.band(bit.ror(b, 16), 	0xFF)
-	x3 = bit.band(bit.ror(b, 24), 	0xFF)
+	x0 = bit_band(		  b, 		0xFF)
+	x1 = bit_band(bit_ror(b, 8), 	0xFF)
+	x2 = bit_band(bit_ror(b, 16), 	0xFF)
+	x3 = bit_band(bit_ror(b, 24), 	0xFF)
 	
 	return x0, x1, x2, x3
 end
@@ -68,7 +80,7 @@ function salsa20.hash(b, rounds)
 	end
 	
 	
-	local z = table.Copy(x)
+	local z = table_Copy(x)
 	for i = 1, rounds / 2 do
 		z = salsa20.doubleround(z)
 	end
@@ -91,12 +103,12 @@ function salsa20.expand(k, n, rounds)
 	end
 	
 	local out = {}
-	local t = { string.byte(string.format("expand %d-byte k", #k), 1, -1) }
+	local t = { string_byte(string_format("expand %d-byte k", #k), 1, -1) }
 	local is32Byte = #k == 32
 	
 	for i = 1, 64, 20 do
 		for j = 1, 4 do
-			out[(i - 1) + j] = t[math.floor(i / 20) * 4 + j]
+			out[(i - 1) + j] = t[math_floor(i / 20) * 4 + j]
 		end
 	end
 	
@@ -122,8 +134,8 @@ function salsa20.makekey(k, v, i, j, rounds)
 		local b
 		
 		for k = 1, 8 do
-			b = bit.band(i[k] + p, 0xFF)
-			p = math.floor((i[k] + p) / 0xFF)
+			b = bit_band(i[k] + p, 0xFF)
+			p = math_floor((i[k] + p) / 0xFF)
 			i[k] = b
 			
 			if p == 0 then
@@ -153,26 +165,21 @@ function salsa20.crypt(k, v, m, rounds)
 		error("salsa20.crypt: rounds must be 20, 12 or 8; got " .. tostring(rounds))
 	end
 	
-	local ciphertext = ""
-	local plainText = {}
+	local ciphertext = {}
 	local i = {0, 0, 0, 0, 0, 0, 0, 0}
 	local key = {}
 	
-	k = { string.byte(k, 1, -1) }
-	v = { string.byte(v, 1, -1) }
+	k = { string_byte(k, 1, -1) }
+	v = { string_byte(v, 1, -1) }
 	
-	for i = 1, #m, 8000 do
-		table.Add(plainText, { string.byte(m, i, i + 7999) })		// Errors if you do 8000+
-	end
-	
-	for j = 1, #m do
+	for j = 1, string_len(m) do
 		if j % 64 == 1 then
 			key, i = salsa20.makekey(k, v, i, j, rounds)
 		end
 		
-		ciphertext = ciphertext .. string.char(bit.bxor(plainText[j], key[((j - 1) % 64) + 1]))
+		ciphertext[j] = string_char(bit_bxor(string_byte(m, j), key[((j - 1) % 64) + 1]))
 	end
 	
-	return ciphertext
+	return table_concat(ciphertext)
 end
 
