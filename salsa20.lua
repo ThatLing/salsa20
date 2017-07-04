@@ -49,11 +49,6 @@ function salsa20.doubleround(x)
 end
 
 function salsa20.littleendian(b)
-	if #b ~= 4 then
-		debug.Trace()
-		error("salsa20.littleendian: b must be 4 bytes in size; got " .. #b)
-	end
-	
 	return b[1] + b[2] * (2 ^ 8) + b[3] * (2 ^ 16) + b[4] * (2 ^ 24)
 end
 
@@ -67,10 +62,6 @@ function salsa20.inv_littleendian(b)
 end
 
 function salsa20.hash(b, rounds)
-	if #b ~= 64 then
-		error("salsa20.hash: b must be 64 bytes in size; got " .. #b)
-	end
-	
 	local x = {}
 	local out = {}
 	
@@ -93,18 +84,15 @@ function salsa20.hash(b, rounds)
 	return out
 end
 
+
+local t
 function salsa20.expand(k, n, rounds)
-	if #k ~= 16 and #k ~= 32 then
-		error("salsa20.expand: k must be 16 or 32 bytes in size; got " .. #k)
-	end
-	
-	if #n ~= 16 then
-		error("salsa20.expand: n must be 16 bytes in size; got " .. #n)
-	end
-	
 	local out = {}
-	local t = { string_byte(string_format("expand %d-byte k", #k), 1, -1) }
-	local is32Byte = #k == 32
+	local keyLen = #k
+	local is32Byte = keyLen == 32
+	if not t then
+		t = { string_byte(string_format("expand %d-byte k", keyLen), 1, -1) }
+	end
 	
 	for i = 1, 64, 20 do
 		for j = 1, 4 do
@@ -165,9 +153,11 @@ function salsa20.crypt(k, v, m, rounds)
 		error("salsa20.crypt: rounds must be 20, 12 or 8; got " .. tostring(rounds))
 	end
 	
+	
 	local ciphertext = {}
 	local i = {0, 0, 0, 0, 0, 0, 0, 0}
 	local key = {}
+	t = nil
 	
 	k = { string_byte(k, 1, -1) }
 	v = { string_byte(v, 1, -1) }
