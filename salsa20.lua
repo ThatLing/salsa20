@@ -53,10 +53,10 @@ function salsa20.littleendian(b)
 end
 
 function salsa20.inv_littleendian(b)
-	x0 = bit_band(		  b, 		0xFF)
-	x1 = bit_band(bit_ror(b, 8), 	0xFF)
-	x2 = bit_band(bit_ror(b, 16), 	0xFF)
-	x3 = bit_band(bit_ror(b, 24), 	0xFF)
+	local x0 = bit_band(		b, 			0xFF)
+	local x1 = bit_band(bit_ror(b, 8 ), 	0xFF)
+	local x2 = bit_band(bit_ror(b, 16), 	0xFF)
+	local x3 = bit_band(bit_ror(b, 24), 	0xFF)
 	
 	return x0, x1, x2, x3
 end
