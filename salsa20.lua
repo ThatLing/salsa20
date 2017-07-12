@@ -10,46 +10,41 @@ local bit_rol = bit.rol
 local bit_ror = bit.ror
 local bit_band = bit.band
 local table_concat = table.concat
+local table_remove = table.remove
 local table_Copy = table.Copy
 local math_floor = math.floor
 
-function salsa20.quarterround(y0, y1, y2, y3)
-	local z1 = bit_bxor(y1, bit_rol(y0 + y3, 7))
-	local z2 = bit_bxor(y2, bit_rol(z1 + y0, 9))
-	local z3 = bit_bxor(y3, bit_rol(z2 + z1, 13))
-	local z0 = bit_bxor(y0, bit_rol(z3 + z2, 18))
-	
-	return z0, z1, z2, z3
+function salsa20.quarterround(t, x, y, z, w)
+	t[y] = bit_bxor(t[y], bit_rol(t[x] + t[w], 7))
+	t[z] = bit_bxor(t[z], bit_rol(t[y] + t[x], 9))
+	t[w] = bit_bxor(t[w], bit_rol(t[z] + t[y], 13))
+	t[x] = bit_bxor(t[x], bit_rol(t[w] + t[z], 18))
 end
 
-function salsa20.rowround(y)
-	local z = {}
-	
-	z[1],	z[2],	z[3],	z[4]  = salsa20.quarterround(y[1], 	y[2],	y[3],	y[4])
-	z[6],	z[7],	z[8],	z[5]  = salsa20.quarterround(y[6], 	y[7],	y[8],	y[5])
-	z[11],	z[12],	z[9],	z[10] = salsa20.quarterround(y[11], y[12],	y[9],	y[10])
-	z[16],	z[13],	z[14],	z[15] = salsa20.quarterround(y[16], y[13],	y[14],	y[15])
-	
-	return z
+function salsa20.rowround(x)
+	salsa20.quarterround(x, 1, 	2,	3,	4)
+	salsa20.quarterround(x, 6, 	7,	8,	5)
+	salsa20.quarterround(x, 11, 12,	9,	10)
+	salsa20.quarterround(x, 16, 13,	14,	15)
 end
 
 function salsa20.columnround(x)
-	local y = {}
-	
-	y[1], 	y[5], 	y[9], 	y[13] = salsa20.quarterround(x[1], 	x[5], 	x[9], 	x[13])
-	y[6], 	y[10], 	y[14], 	y[2]  = salsa20.quarterround(x[6], 	x[10], 	x[14], 	x[2])
-	y[11], 	y[15], 	y[3], 	y[7]  = salsa20.quarterround(x[11], x[15], 	x[3], 	x[7])
-	y[16], 	y[4],	y[8], 	y[12] = salsa20.quarterround(x[16], x[4],	x[8], 	x[12])
-	
-	return y
+	salsa20.quarterround(x, 1, 	5, 	9, 	13)
+	salsa20.quarterround(x, 6, 	10, 14, 2)
+	salsa20.quarterround(x, 11, 15, 3, 	7)
+	salsa20.quarterround(x, 16, 4,	8, 	12)
 end
 
 function salsa20.doubleround(x)
-	return salsa20.rowround(salsa20.columnround(x))
+	salsa20.columnround(x)
+	salsa20.rowround(x)
 end
 
 function salsa20.littleendian(b)
-	return b[1] + b[2] * (2 ^ 8) + b[3] * (2 ^ 16) + b[4] * (2 ^ 24)
+	return 		b[1] 		+ 
+		bit_rol(b[2], 8)  	+ 
+		bit_rol(b[3], 16) 	+ 
+		bit_rol(b[4], 24)
 end
 
 function salsa20.inv_littleendian(b)
@@ -65,15 +60,14 @@ function salsa20.hash(b, rounds)
 	local x = {}
 	local out = {}
 	
-	for i = 1, 16 do
-		local p = (i * 4) - 3
-		x[i] = salsa20.littleendian({b[p], b[p + 1], b[p + 2], b[p + 3]}) 
+	for i = 1, 64, 4 do
+		x[#x + 1] = ChaCha.littleendian({b[i], b[i + 1], b[i + 2], b[i + 3]}) 
 	end
 	
 	
 	local z = table_Copy(x)
 	for i = 1, rounds / 2 do
-		z = salsa20.doubleround(z)
+		salsa20.doubleround(z)
 	end
 	
 	for i = 1, 16 do
@@ -163,11 +157,12 @@ function salsa20.crypt(k, v, m, rounds)
 	v = { string_byte(v, 1, -1) }
 	
 	for j = 1, string_len(m) do
-		if j % 64 == 1 then
+		if #key == 0 then
 			key, i = salsa20.makekey(k, v, i, j, rounds)
 		end
 		
-		ciphertext[j] = string_char(bit_bxor(string_byte(m, j), key[((j - 1) % 64) + 1]))
+		ciphertext[j] = string_char(bit_bxor(string_byte(m, j), key[1]))
+		table_remove(key, 1)
 	end
 	
 	return table_concat(ciphertext)
