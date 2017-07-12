@@ -1,6 +1,7 @@
 
 salsa20 = {}
 
+local error = error
 local string_byte = string.byte
 local string_char = string.char
 local string_len = string.len
