@@ -15,40 +15,45 @@ local table_remove = table.remove
 local table_Copy = table.Copy
 local math_floor = math.floor
 
-function salsa20.quarterround(t, x, y, z, w)
+local function quarterround(t, x, y, z, w)
 	t[y] = bit_bxor(t[y], bit_rol(t[x] + t[w], 7))
 	t[z] = bit_bxor(t[z], bit_rol(t[y] + t[x], 9))
 	t[w] = bit_bxor(t[w], bit_rol(t[z] + t[y], 13))
 	t[x] = bit_bxor(t[x], bit_rol(t[w] + t[z], 18))
 end
+salsa20.quarterround = quarterround
 
-function salsa20.rowround(x)
-	salsa20.quarterround(x, 1, 	2,	3,	4)
-	salsa20.quarterround(x, 6, 	7,	8,	5)
-	salsa20.quarterround(x, 11, 12,	9,	10)
-	salsa20.quarterround(x, 16, 13,	14,	15)
+local function rowround(x)
+	quarterround(x, 1, 	2,	3,	4)
+	quarterround(x, 6, 	7,	8,	5)
+	quarterround(x, 11, 12,	9,	10)
+	quarterround(x, 16, 13,	14,	15)
 end
+salsa20.rowround = rowround
 
-function salsa20.columnround(x)
-	salsa20.quarterround(x, 1, 	5, 	9, 	13)
-	salsa20.quarterround(x, 6, 	10, 14, 2)
-	salsa20.quarterround(x, 11, 15, 3, 	7)
-	salsa20.quarterround(x, 16, 4,	8, 	12)
+local function columnround(x)
+	quarterround(x, 1, 	5, 	9, 	13)
+	quarterround(x, 6, 	10, 14, 2)
+	quarterround(x, 11, 15, 3, 	7)
+	quarterround(x, 16, 4,	8, 	12)
 end
+salsa20.columnround = columnround
 
-function salsa20.doubleround(x)
-	salsa20.columnround(x)
-	salsa20.rowround(x)
+local function doubleround(x)
+	columnround(x)
+	rowround(x)
 end
+salsa20.doubleround = doubleround
 
-function salsa20.littleendian(b)
+local function littleendian(b)
 	return 		b[1] 		+ 
 		bit_rol(b[2], 8)  	+ 
 		bit_rol(b[3], 16) 	+ 
 		bit_rol(b[4], 24)
 end
+salsa20.littleendian = littleendian
 
-function salsa20.inv_littleendian(b)
+local function inv_littleendian(b)
 	local x0 = bit_band(		b, 			0xFF)
 	local x1 = bit_band(bit_ror(b, 8 ), 	0xFF)
 	local x2 = bit_band(bit_ror(b, 16), 	0xFF)
@@ -56,8 +61,9 @@ function salsa20.inv_littleendian(b)
 	
 	return x0, x1, x2, x3
 end
+salsa20.inv_littleendian = inv_littleendian
 
-function salsa20.hash(b, rounds)
+local function hash(b, rounds)
 	local x = {}
 	local out = {}
 	
@@ -68,20 +74,20 @@ function salsa20.hash(b, rounds)
 	
 	local z = table_Copy(x)
 	for i = 1, rounds / 2 do
-		salsa20.doubleround(z)
+		doubleround(z)
 	end
 	
 	for i = 1, 16 do
 		local p = (i * 4) - 3
-		out[p], out[p + 1], out[p + 2], out[p + 3] = salsa20.inv_littleendian(z[i] + x[i])
+		out[p], out[p + 1], out[p + 2], out[p + 3] = inv_littleendian(z[i] + x[i])
 	end
 	
 	return out
 end
-
+salsa20.hash = hash
 
 local t
-function salsa20.expand(k, n, rounds)
+local function expand(k, n, rounds)
 	local out = {}
 	local keyLen = #k
 	local is32Byte = keyLen == 32
@@ -91,7 +97,7 @@ function salsa20.expand(k, n, rounds)
 	
 	for i = 1, 64, 20 do
 		for j = 1, 4 do
-			out[(i - 1) + j] = t[math_floor(i / 20) * 4 + j]
+			out[(i - 1) + j] = t[math_floor(i / 20) * 4 + j]		-- This is ugly
 		end
 	end
 	
@@ -106,10 +112,11 @@ function salsa20.expand(k, n, rounds)
 		end
 	end
 	
-	return salsa20.hash(out, rounds)
+	return hash(out, rounds)
 end
+salsa20.expand = expand
 
-function salsa20.makekey(k, v, i, j, rounds)
+local function makekey(k, v, i, j, rounds)
 	local n = {}
 	
 	if (j / 64) > 1 then
@@ -132,10 +139,11 @@ function salsa20.makekey(k, v, i, j, rounds)
 		n[k + 8] = i[k]
 	end
 	
-	return salsa20.expand(k, n, rounds), i
+	return expand(k, n, rounds), i
 end
+salsa20.makekey = makekey
 
-function salsa20.crypt(k, v, m, rounds)
+local function crypt(k, v, m, rounds)
 	if #k ~= 32 and #k ~= 16 then
 		error("salsa20.crypt: k must be 16 or 32 bytes in size; got " .. #k)
 	end
@@ -159,7 +167,7 @@ function salsa20.crypt(k, v, m, rounds)
 	
 	for j = 1, string_len(m) do
 		if #key == 0 then
-			key, i = salsa20.makekey(k, v, i, j, rounds)
+			key, i = makekey(k, v, i, j, rounds)
 		end
 		
 		ciphertext[j] = string_char(bit_bxor(string_byte(m, j), key[1]))
@@ -168,4 +176,4 @@ function salsa20.crypt(k, v, m, rounds)
 	
 	return table_concat(ciphertext)
 end
-
+salsa20.crypt = crypt
